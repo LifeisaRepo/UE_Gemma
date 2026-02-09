@@ -40,10 +40,6 @@
 				"LinuxArm64",
 				"Android"
 			]
-		},
-		{
-			"Name": "LiteRTLMPlugin",
-			"Enabled": false
 		}
 	],
 	"TargetPlatforms": [

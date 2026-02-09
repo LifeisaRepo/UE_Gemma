@@ -13,13 +13,13 @@
 
 	<buildGradleAdditions>
 		<insert>
-			dependencies {
-			implementation 'com.google.ai.edge.litertlm:litertlm-android:latest.release'
-			implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.20'
-			implementation 'org.jetbrains:annotations:24.0.0'
-			implementation 'com.google.guava:guava:32.1.3-android'
-			}
-		</insert>
+      dependencies {
+      implementation 'com.google.ai.edge.litertlm:litertlm-android:0.9.0-alpha01'
+      implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.20'
+      implementation 'org.jetbrains:annotations:24.0.0'
+      implementation 'com.google.guava:guava:32.1.3-android'
+      }
+    </insert>
 	</buildGradleAdditions>
 
 	<androidManifestUpdates>
@@ -78,8 +78,16 @@
       lmEngine.initialize();
 
       com.google.ai.edge.litertlm.SamplerConfig sampler = new com.google.ai.edge.litertlm.SamplerConfig(40, 0.95, 0.1, 128);
-      String systemPrompt = "You are a model that can do function calling. " +
-      "Tools: [go_forward(), go_backward(), go_left(), go_right()]";
+
+      String systemPrompt = "<![CDATA[" + 
+        "You are a model that can do function calling with the following functions" +
+        "<start_function_declaration>declaration:move_ai_to_pin{description:<escape>Move the AI NPC to a predefined location.<escape>,parameters:{type:<escape>OBJECT<escape>}}<end_function_declaration>" +
+        "<start_function_declaration>declaration:find_nearest_weapon{description:<escape>Find the weapon nearest to the player<escape>,parameters:{type:<escape>OBJECT<escape>}}<end_function_declaration>" +
+        "<start_function_declaration>declaration:toggle_tod{description:<escape>Toggle between day and night time of day in the game<escape>,parameters:{type:<escape>OBJECT<escape>}}<end_function_declaration>" +
+        "<start_function_declaration>declaration:teleport_player{description:<escape>Teleports the player to a specified location.<escape>,parameters:{properties:{location_tag:{description:<escape>The location tag to teleport to.<escape>,enum:[<escape>red<escape>,<escape>green<escape>,<escape>blue<escape>],type:<escape>STRING<escape>}},required:[<escape>location_tag<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" +
+        "<start_function_declaration>declaration:find_weapon{description:<escape>Find the weapon defined by the weapon_name parameter.<escape>,parameters:{properties:{weapon_name:{description:<escape>The name of the weapon to find.<escape>,enum:[<escape>pistol<escape>,<escape>rifle<escape>,<escape>grenadelauncher<escape>],type:<escape>STRING<escape>}},required:[<escape>weapon_name<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" +
+        " <start_function_declaration>declaration:change_weapon_color{description:<escape>Change the color of the weapon held by the player.<escape>,parameters:{properties:{color_name:{description:<escape>The color to change the weapon to.<escape>,enum:[<escape>red<escape>,<escape>green<escape>,<escape>blue<escape>,<escape>white<escape>,<escape>black<escape>,<escape>pink<escape>,<escape>random<escape>],type:<escape>STRING<escape>}},required:[<escape>color_name<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" 
+        + "]]>";
 
       com.google.ai.edge.litertlm.ConversationConfig convConfig = new com.google.ai.edge.litertlm.ConversationConfig(
       com.google.ai.edge.litertlm.Message.Companion.of(systemPrompt),
@@ -119,8 +127,16 @@
       public void AndroidThunkJava_ResetConversation() {
       lmConversation.close();
       com.google.ai.edge.litertlm.SamplerConfig sampler = new com.google.ai.edge.litertlm.SamplerConfig(40, 0.95, 0.1, 128);
-      String systemPrompt = "You are a model that can do function calling. " +
-      "Tools: [go_forward(), go_backward(), go_left(), go_right()]";
+
+      String systemPrompt = "<![CDATA[" + 
+        "You are a model that can do function calling with the following functions" +
+        "<start_function_declaration>declaration:move_ai_to_pin{description:<escape>Move the AI NPC to a predefined location.<escape>,parameters:{type:<escape>OBJECT<escape>}}<end_function_declaration>" +
+        "<start_function_declaration>declaration:find_nearest_weapon{description:<escape>Find the weapon nearest to the player<escape>,parameters:{type:<escape>OBJECT<escape>}}<end_function_declaration>" +
+        "<start_function_declaration>declaration:toggle_tod{description:<escape>Toggle between day and night time of day in the game<escape>,parameters:{type:<escape>OBJECT<escape>}}<end_function_declaration>" +
+        "<start_function_declaration>declaration:teleport_player{description:<escape>Teleports the player to a specified location.<escape>,parameters:{properties:{location_tag:{description:<escape>The location tag to teleport to.<escape>,enum:[<escape>red<escape>,<escape>green<escape>,<escape>blue<escape>],type:<escape>STRING<escape>}},required:[<escape>location_tag<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" +
+        "<start_function_declaration>declaration:find_weapon{description:<escape>Find the weapon defined by the weapon_name parameter.<escape>,parameters:{properties:{weapon_name:{description:<escape>The name of the weapon to find.<escape>,enum:[<escape>pistol<escape>,<escape>rifle<escape>,<escape>grenadelauncher<escape>],type:<escape>STRING<escape>}},required:[<escape>weapon_name<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" +
+        " <start_function_declaration>declaration:change_weapon_color{description:<escape>Change the color of the weapon held by the player.<escape>,parameters:{properties:{color_name:{description:<escape>The color to change the weapon to.<escape>,enum:[<escape>red<escape>,<escape>green<escape>,<escape>blue<escape>,<escape>white<escape>,<escape>black<escape>,<escape>pink<escape>,<escape>random<escape>],type:<escape>STRING<escape>}},required:[<escape>color_name<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" 
+        + "]]>";
 
       com.google.ai.edge.litertlm.ConversationConfig convConfig = new com.google.ai.edge.litertlm.ConversationConfig(
       com.google.ai.edge.litertlm.Message.Companion.of(systemPrompt),
@@ -164,82 +180,10 @@
       }
       }
 
-      private SpeechRecognizer speechRecognizer;
-      private Intent recognizerIntent;
-      private boolean isListening = false;
-
-      public native void nativeOnSTTResult(String text);
-
-      public void AndroidThunkJava_InitSTT() {
-      _activity.runOnUiThread(new Runnable() {
-      @Override
-      public void run() {
-      if (SpeechRecognizer.isRecognitionAvailable(_activity)) {
-      speechRecognizer = SpeechRecognizer.createSpeechRecognizer(_activity);
-      recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-      recognizerIntent.putExtra(RecognizerIntent.LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-      // Ensures the engine stays active while the button is held
-      recognizerIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
-
-      speechRecognizer.setRecognitionListener(new RecognitionListener() {
-      @Override
-      public void onResults(Bundle results) {
-      ArrayList&lt;String&gt; matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-      if (matches != null &amp;&amp; !matches.isEmpty() &amp;&amp; isListening) {
-      nativeOnSTTResult(matches.get(0));
-      }
-      isListening = false;
-      }
-      @Override public void onError(int error) { isListening = false; }
-      // Stub other required methods...
-      @Override public void onReadyForSpeech(Bundle params) {}
-      @Override public void onBeginningOfSpeech() {}
-      @Override public void onRmsChanged(float rmsdB) {}
-      @Override public void onBufferReceived(byte[] buffer) {}
-      @Override public void onEndOfSpeech() {}
-      @Override public void onPartialResults(Bundle partialResults) {}
-      @Override public void onEvent(int eventType, Bundle params) {}
-      });
-      }
-      }
-      });
-      }
-
-      public void AndroidThunkJava_StartListening() {
-      _activity.runOnUiThread(new Runnable() {
-      @Override
-      public void run() {
-      if (speechRecognizer != null) {
-      isListening = true;
-      speechRecognizer.startListening(recognizerIntent);
-      }
-      }
-      });
-      }
-
-      public void AndroidThunkJava_StopListening() {
-      _activity.runOnUiThread(new Runnable() {
-      @Override
-      public void run() {
-      if (speechRecognizer != null) {
-      // This triggers onResults immediately with whatever was heard
-      speechRecognizer.stopListening();
-      }
-      }
-      });
-      }
-
       public void AndroidThunkJava_ShutdownAll() {
       _activity.runOnUiThread(new Runnable() {
       @Override
       public void run() {
-      // 1. Shutdown Speech Recognizer
-      if (speechRecognizer != null) {
-      speechRecognizer.stopListening();
-      speechRecognizer.cancel();
-      speechRecognizer.destroy();
-      speechRecognizer = null;
-      }
 
       // 2. Shutdown LiteRT-LM (using your existing CloseConnection logic)
       if (lmEngine != null) {

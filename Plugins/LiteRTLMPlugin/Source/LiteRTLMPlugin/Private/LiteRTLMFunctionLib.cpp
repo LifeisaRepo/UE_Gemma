@@ -139,30 +139,39 @@ bool ULiteRTLMFunctionLib::ParseFunctionCall(FString RawResponse, FString Prefix
     UE_LOG(LogTemp, Warning, TEXT("BP_Gemma: Parsing: %s"), *CleanString);
 
     int32 JsonStartIndex;
+    int32 JsonEndIndex;
     if (!CleanString.FindChar('{', JsonStartIndex)) return false;
+    if (!CleanString.FindChar('}', JsonEndIndex)) return false;
 
     OutFunctionName = CleanString.Left(JsonStartIndex).TrimStartAndEnd();
 
     if (!OutFunctionName.IsEmpty())
     {
         UE_LOG(LogTemp, Warning, TEXT("BP_Gemma: OutFunctionName: %s"), *OutFunctionName);
-        return true;
+        // return true;
     }
 
-    //FString JsonPart = CleanString.RightChop(JsonStartIndex);
+    FString JsonPart = CleanString.RightChop(JsonStartIndex);
+    JsonPart = JsonPart.LeftChop(19);   // Remove "<end_function_call>"
 
-    //// 3. Parse the JSON parameters
-    //TSharedPtr<FJsonObject> JsonObject;
-    //TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonPart);
+    UE_LOG(LogTemp, Warning, TEXT("BP_Gemma: Chopped JSON block: %s"), *JsonPart);
 
-    //if (FJsonSerializer::Deserialize(Reader, JsonObject) && JsonObject.IsValid())
-    //{
-    //    for (auto& Pair : JsonObject->Values)
-    //    {
-    //        OutParameters.Add(Pair.Key, Pair.Value->AsString());
-    //    }
-    //    return true;
-    //}
+    // 3. Parse the JSON parameters
+    TSharedPtr<FJsonObject> JsonObject;
+    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonPart);
+
+    if (FJsonSerializer::Deserialize(Reader, JsonObject) && JsonObject.IsValid())
+    {
+        for (auto& Pair : JsonObject->Values)
+        {
+            OutParameters.Add(Pair.Key, Pair.Value->AsString());
+        }
+        return true;
+    }
+    else {
+        UE_LOG(LogTemp, Warning, TEXT("BP_Gemma: No Parameters found!"));
+        return true;
+    }
 
     return false;
 }
@@ -173,7 +182,7 @@ void ULiteRTLMFunctionLib::ShutdownLM()
     if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
     {
         static jmethodID CloseMethod = FJavaWrapper::FindMethod(Env,
-            FJavaWrapper::GameActivityClassID, "AndroidThunkJava_CloseConnection", "()V", false);
+            FJavaWrapper::GameActivityClassID, "AndroidThunkJava_ShutdownAll", "()V", false);
         FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityThis, CloseMethod);
     }
 #endif
@@ -182,29 +191,29 @@ void ULiteRTLMFunctionLib::ShutdownLM()
 void ULiteRTLMFunctionLib::InitSTT()
 {
 #if PLATFORM_ANDROID
-    if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
+    /*if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
     {
         static jmethodID InitMethod = FJavaWrapper::FindMethod(Env, FJavaWrapper::GameActivityClassID, "AndroidThunkJava_InitSTT", "()V", false);
-        FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityObject, InitMethod);
-    }
+        FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityThis, InitMethod);
+    }*/
 #endif
 }
 
 void ULiteRTLMFunctionLib::StartSTT() {
 #if PLATFORM_ANDROID
-    if (JNIEnv* Env = FAndroidApplication::GetJavaEnv()) {
+    /*if (JNIEnv* Env = FAndroidApplication::GetJavaEnv()) {
         static jmethodID Method = FJavaWrapper::FindMethod(Env, FJavaWrapper::GameActivityClassID, "AndroidThunkJava_StartListening", "()V", false);
-        FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityObject, Method);
-    }
+        FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityThis, Method);
+    }*/
 #endif
 }
 
 void ULiteRTLMFunctionLib::StopSTT() {
 #if PLATFORM_ANDROID
-    if (JNIEnv* Env = FAndroidApplication::GetJavaEnv()) {
+    /*if (JNIEnv* Env = FAndroidApplication::GetJavaEnv()) {
         static jmethodID Method = FJavaWrapper::FindMethod(Env, FJavaWrapper::GameActivityClassID, "AndroidThunkJava_StopListening", "()V", false);
-        FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityObject, Method);
-    }
+        FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityThis, Method);
+    }*/
 #endif
 }
 
@@ -213,7 +222,7 @@ void ULiteRTLMFunctionLib::ShutdownAIServices() {
 #if PLATFORM_ANDROID
     if (JNIEnv* Env = FAndroidApplication::GetJavaEnv()) {
         static jmethodID Method = FJavaWrapper::FindMethod(Env, FJavaWrapper::GameActivityClassID, "AndroidThunkJava_ShutdownAll", "()V", false);
-        FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityObject, Method);
+        FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityThis, Method);
     }
 #endif
 }
