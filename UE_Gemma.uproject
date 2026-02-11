@@ -40,6 +40,14 @@
 				"LinuxArm64",
 				"Android"
 			]
+		},
+		{
+			"Name": "JsonBlueprintUtilities",
+			"Enabled": true
+		},
+		{
+			"Name": "SerializationUtils",
+			"Enabled": true
 		}
 	],
 	"TargetPlatforms": [

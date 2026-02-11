@@ -7,6 +7,8 @@
 #include "Serialization/JsonSerializer.h"
 #include "Dom/JsonObject.h"
 
+FLiteRTToolExecutorDelegate ULiteRTLMFunctionLib::GToolExecutorDelegate;
+
 #if PLATFORM_ANDROID
 #include "Android/AndroidJava.h"
 #include "Android/AndroidJNI.h"
@@ -24,6 +26,45 @@ JNIEXPORT void JNICALL Java_com_epicgames_unreal_GameActivity_nativeOnSTTResult(
             // Pass the speech directly to your existing Gemma generation function
             // ULiteRTLMFunctionLibrary::GenerateLMResponseAsync(RecognizedText);
         });
+}
+
+
+JNIEXPORT jstring JNICALL Java_com_epicgames_unreal_GameActivity_nativeOnToolExecution(JNIEnv* jenv, jobject thiz, jstring jFunctionName, jstring jParams)
+{
+    FString FunctionName = FJavaHelper::FStringFromParam(jenv, jFunctionName);
+    FString Params = FJavaHelper::FStringFromParam(jenv, jParams);
+
+    UE_LOG(LogTemp, Log, TEXT("LiteRT-Tool: Requested Execution: %s with Params: %s"), *FunctionName, *Params);
+
+    // We need to execute this on the GameThread, but we must return a value synchronously to Java.
+    // So we will pause this thread (which checks out as being a background thread from Java) until the GT finishes.
+
+    FString ToolResult = TEXT("{}");
+    FEvent* SyncEvent = FPlatformProcess::GetSynchEventFromPool(false);
+
+    if (SyncEvent)
+    {
+        AsyncTask(ENamedThreads::GameThread, [FunctionName, Params, &ToolResult, SyncEvent]()
+            {
+                if (ULiteRTLMFunctionLib::GToolExecutorDelegate.IsBound())
+                {
+                    ToolResult = ULiteRTLMFunctionLib::GToolExecutorDelegate.Execute(FunctionName, Params);
+                }
+                else
+                {
+                    UE_LOG(LogTemp, Warning, TEXT("LiteRT-Tool: No ToolExecutor registered!"));
+                    ToolResult = TEXT("{\"error\": \"No tool executor registered in Unreal\"}");
+                }
+                SyncEvent->Trigger();
+            });
+
+        // Wait for the GameThread to finish (with a timeout just in case)
+        SyncEvent->Wait(10000); // 10 seconds timeout
+        FPlatformProcess::ReturnSynchEventToPool(SyncEvent);
+    }
+
+    jstring jResult = jenv->NewStringUTF(TCHAR_TO_UTF8(*ToolResult));
+    return jResult;
 }
 
 #endif
@@ -132,6 +173,12 @@ void ULiteRTLMFunctionLib::SubmitToolResult(FString FunctionName, FString JsonRe
                 });
         });
 
+}
+
+void ULiteRTLMFunctionLib::RegisterToolExecutor(FLiteRTToolExecutorDelegate Executor)
+{
+    GToolExecutorDelegate = Executor;
+    UE_LOG(LogTemp, Log, TEXT("LiteRT-LM: Tool Executor Registered"));
 }
 
 void ULiteRTLMFunctionLib::ResetConversation()

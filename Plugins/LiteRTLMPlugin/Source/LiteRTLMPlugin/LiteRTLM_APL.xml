@@ -56,50 +56,103 @@
 
 	<gameActivityClassAdditions>
 		<insert>
-
       private com.google.ai.edge.litertlm.Engine lmEngine;
       private com.google.ai.edge.litertlm.Conversation lmConversation;
       private com.google.ai.edge.litertlm.Message lmMessage;
 
+      // Native JNI method for tool execution
+      public native String nativeOnToolExecution(String functionName, String args);
 
-      public void AndroidThunkJava_InitWithFunctions(String modelPath) {
-      try {
-      com.google.ai.edge.litertlm.Backend gpu = com.google.ai.edge.litertlm.Backend.GPU;
-      com.google.ai.edge.litertlm.Backend cpu = com.google.ai.edge.litertlm.Backend.CPU;
+      // We need a specific implementation for each tool if we want to route correctly,
+      // OR a generic one if we can extract the name.
+      // `InternalJsonTool` (wrapper) calls `execute(params)`.
 
-      com.google.ai.edge.litertlm.EngineConfig config = new com.google.ai.edge.litertlm.EngineConfig(
-      modelPath,              // 1. String: Model Path
-      cpu,                    // 2. Backend: Base Backend
-      null,                    // 3. Backend: Prefill Backend
-      null,                    // 4. Backend: Decode Backend
-      1024,                   // 5. Integer: Max Context Length
-      getCacheDir().getPath() // 6. String: Cache Directory Path
-      );
+      class GenericUnrealTool implements com.google.ai.edge.litertlm.OpenApiTool {
+      private String name;
+      private String fullDescriptionJson;
 
-      lmEngine = new com.google.ai.edge.litertlm.Engine(config);
-      lmEngine.initialize();
+      public GenericUnrealTool(String name, String descriptionJson) {
+      this.name = name;
+      this.fullDescriptionJson = descriptionJson;
+      }
 
-      com.google.ai.edge.litertlm.SamplerConfig sampler = new com.google.ai.edge.litertlm.SamplerConfig(40, 0.95, 0.1, 128);
+      @Override
+      public String getToolDescriptionJsonString() {
+      return fullDescriptionJson;
+      }
 
-      String systemPrompt = "<![CDATA[" + 
-        "You are a model that can do function calling with the following functions" +
-        "<start_function_declaration>declaration:move_ai_to_pin{description:<escape>Move the AI NPC to a predefined location.<escape>,parameters:{type:<escape>OBJECT<escape>}}<end_function_declaration>" +
-        "<start_function_declaration>declaration:find_nearest_weapon{description:<escape>Find the weapon nearest to the player<escape>,parameters:{type:<escape>OBJECT<escape>}}<end_function_declaration>" +
-        "<start_function_declaration>declaration:toggle_tod{description:<escape>Toggle between day and night time of day in the game<escape>,parameters:{type:<escape>OBJECT<escape>}}<end_function_declaration>" +
-        "<start_function_declaration>declaration:teleport_player{description:<escape>Teleports the player to a specified location.<escape>,parameters:{properties:{location_tag:{description:<escape>The location tag to teleport to.<escape>,enum:[<escape>red<escape>,<escape>green<escape>,<escape>blue<escape>],type:<escape>STRING<escape>}},required:[<escape>location_tag<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" +
-        "<start_function_declaration>declaration:find_weapon{description:<escape>Find the weapon defined by the weapon_name parameter.<escape>,parameters:{properties:{weapon_name:{description:<escape>The name of the weapon to find.<escape>,enum:[<escape>pistol<escape>,<escape>rifle<escape>,<escape>grenadelauncher<escape>],type:<escape>STRING<escape>}},required:[<escape>weapon_name<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" +
-        " <start_function_declaration>declaration:change_weapon_color{description:<escape>Change the color of the weapon held by the player.<escape>,parameters:{properties:{color_name:{description:<escape>The color to change the weapon to.<escape>,enum:[<escape>red<escape>,<escape>green<escape>,<escape>blue<escape>,<escape>white<escape>,<escape>black<escape>,<escape>pink<escape>,<escape>random<escape>],type:<escape>STRING<escape>}},required:[<escape>color_name<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>"
-        + "]]>";
+      @Override
+      public String execute(String paramsJsonString) {
+      android.util.Log.d("LiteRT-LM", "Executing Tool: " + name + " with params: " + paramsJsonString);
+      return nativeOnToolExecution(name, paramsJsonString);
+      }
+      }
+
+
+      // Class fields to store config for reset
+      private List&lt;Object&gt;
+        _tools;
+        private String _systemPrompt;
+
+        public void AndroidThunkJava_InitWithFunctions(String modelPath) {
+        try {
+        com.google.ai.edge.litertlm.Backend gpu = com.google.ai.edge.litertlm.Backend.GPU;
+        com.google.ai.edge.litertlm.Backend cpu = com.google.ai.edge.litertlm.Backend.CPU;
+
+        com.google.ai.edge.litertlm.EngineConfig config = new com.google.ai.edge.litertlm.EngineConfig(
+        modelPath,              // 1. String: Model Path
+        cpu,                    // 2. Backend: Base Backend
+        null,                   // 3. Backend: Prefill Backend
+        null,                   // 4. Backend: Decode Backend
+        1024,                   // 5. Integer: Max Context Length
+        getCacheDir().getPath() // 6. String: Cache Directory Path
+        );
+
+        lmEngine = new com.google.ai.edge.litertlm.Engine(config);
+        lmEngine.initialize();
+
+        com.google.ai.edge.litertlm.SamplerConfig sampler = new com.google.ai.edge.litertlm.SamplerConfig(40, 0.95, 0.1, 128);
+
+        // Define Tools
+        _tools = new ArrayList&lt;&gt;();
+
+      // Tool 1: move_ai_to_pin
+      String t1 = "{\"name\": \"move_ai_to_pin\", \"description\": \"Move the AI NPC to a predefined location.\", \"parameters\": { \"type\": \"object\" } }";
+      _tools.add(com.google.ai.edge.litertlm.ToolKt.tool(new GenericUnrealTool("move_ai_to_pin", t1)));
+
+      // Tool 2: find_nearest_weapon
+      String t2 = "{\"name\": \"find_nearest_weapon\", \"description\": \"Find the weapon nearest to the player\", \"parameters\": { \"type\": \"object\" } }";
+      _tools.add(com.google.ai.edge.litertlm.ToolKt.tool(new GenericUnrealTool("find_nearest_weapon", t2)));
+
+      // Tool 3: toggle_tod
+      String t3 = "{\"name\": \"toggle_tod\", \"description\": \"Toggle between day and night time of day in the game\", \"parameters\": { \"type\": \"object\" } }";
+      _tools.add(com.google.ai.edge.litertlm.ToolKt.tool(new GenericUnrealTool("toggle_tod", t3)));
+
+      // Tool 4: teleport_player
+      String t4 = "{\"name\": \"teleport_player\", \"description\": \"Teleports the player to a specified location.\", \"parameters\": { \"type\": \"object\", \"properties\": { \"location_tag\": { \"type\": \"string\", \"enum\": [\"red\", \"green\", \"blue\"], \"description\": \"The location tag to teleport to.\" } }, \"required\": [\"location_tag\"] } }";
+      _tools.add(com.google.ai.edge.litertlm.ToolKt.tool(new GenericUnrealTool("teleport_player", t4)));
+
+      // Tool 5: find_weapon
+      String t5 = "{\"name\": \"find_weapon\", \"description\": \"Find the weapon defined by the weapon_name parameter.\", \"parameters\": { \"type\": \"object\", \"properties\": { \"weapon_name\": { \"type\": \"string\", \"enum\": [\"pistol\", \"rifle\", \"grenadelauncher\"], \"description\": \"The name of the weapon to find.\" } }, \"required\": [\"weapon_name\"] } }";
+      _tools.add(com.google.ai.edge.litertlm.ToolKt.tool(new GenericUnrealTool("find_weapon", t5)));
+
+      // Tool 6: change_weapon_color
+      String t6 = "{\"name\": \"change_weapon_color\", \"description\": \"Change the color of the weapon held by the player.\", \"parameters\": { \"type\": \"object\", \"properties\": { \"color_name\": { \"type\": \"string\", \"enum\": [\"red\", \"green\", \"blue\", \"white\", \"black\", \"pink\", \"random\"], \"description\": \"The color to change the weapon to.\" } }, \"required\": [\"color_name\"] } }";
+      _tools.add(com.google.ai.edge.litertlm.ToolKt.tool(new GenericUnrealTool("change_weapon_color", t6)));
+
+      _systemPrompt = "You are a model that can do function calling with the following functions";
 
       com.google.ai.edge.litertlm.ConversationConfig convConfig = new com.google.ai.edge.litertlm.ConversationConfig(
-      com.google.ai.edge.litertlm.Contents.Companion.of(systemPrompt),
+      com.google.ai.edge.litertlm.Contents.Companion.of(_systemPrompt),
       java.util.Collections.emptyList(),
-      java.util.Collections.emptyList(),
+      _tools,
       sampler,
-      null);
+      null
+      );
+
       lmConversation = lmEngine.createConversation(convConfig);
 
-      android.util.Log.d("LiteRT-LM", "Engine and Conversation Initialized");
+      android.util.Log.d("LiteRT-LM", "Engine and Conversation Initialized with Tools");
 
       } catch (Exception e) {
       android.util.Log.e("LiteRT-LM", "Initialization failed: " + e.getMessage());
@@ -112,8 +165,9 @@
       }
 
       try {
+      com.google.ai.edge.litertlm.Message response = lmConversation.sendMessage(prompt);
 
-      String aiResult = lmConversation.sendMessage(lmMessage.Companion.user(prompt)).toString();
+      String aiResult = response.toString();
 
       return aiResult;
       } catch (Exception e) {
@@ -123,99 +177,90 @@
 
 
       public String AndroidThunkJava_SubmitFunctionResult(String functionName, String resultJson) {
-      if (lmEngine == null || lmConversation == null) {
-      return "Error: Engine not initialized";
-      }
-      try {
-
-      String toolMessage = "<![CDATA[" + "<end_of_turn>\n<start_of_turn>tool\n<start_function_response>response:" +"]]>" + functionName + resultJson + "<![CDATA[" + "<end_function_response>" +"]]>";
-
-      String aiResult = lmConversation.sendMessage(lmMessage.Companion.model(toolMessage)).toString();
-
-      return aiResult;
-      } catch (Exception e) {
-      return "Error during tool result response generation: " + e.getMessage();
-      }
+      // Deprecated: Results are now handled automatically via ToolManager execution cycle
+      return "Tool execution handled internally";
       }
 
       public void AndroidThunkJava_ResetConversation() {
-      lmConversation.close();
-      com.google.ai.edge.litertlm.SamplerConfig sampler = new com.google.ai.edge.litertlm.SamplerConfig(40, 0.95, 0.1, 128);
-
-      String systemPrompt = "<![CDATA[" + 
-        "You are a model that can do function calling with the following functions" +
-        "<start_function_declaration>declaration:move_ai_to_pin{description:<escape>Move the AI NPC to a predefined location.<escape>,parameters:{type:<escape>OBJECT<escape>}}<end_function_declaration>" +
-        "<start_function_declaration>declaration:find_nearest_weapon{description:<escape>Find the weapon nearest to the player<escape>,parameters:{type:<escape>OBJECT<escape>}}<end_function_declaration>" +
-        "<start_function_declaration>declaration:toggle_tod{description:<escape>Toggle between day and night time of day in the game<escape>,parameters:{type:<escape>OBJECT<escape>}}<end_function_declaration>" +
-        "<start_function_declaration>declaration:teleport_player{description:<escape>Teleports the player to a specified location.<escape>,parameters:{properties:{location_tag:{description:<escape>The location tag to teleport to.<escape>,enum:[<escape>red<escape>,<escape>green<escape>,<escape>blue<escape>],type:<escape>STRING<escape>}},required:[<escape>location_tag<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" +
-        "<start_function_declaration>declaration:find_weapon{description:<escape>Find the weapon defined by the weapon_name parameter.<escape>,parameters:{properties:{weapon_name:{description:<escape>The name of the weapon to find.<escape>,enum:[<escape>pistol<escape>,<escape>rifle<escape>,<escape>grenadelauncher<escape>],type:<escape>STRING<escape>}},required:[<escape>weapon_name<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" +
-        "<start_function_declaration>declaration:change_weapon_color{description:<escape>Change the color of the weapon held by the player.<escape>,parameters:{properties:{color_name:{description:<escape>The color to change the weapon to.<escape>,enum:[<escape>red<escape>,<escape>green<escape>,<escape>blue<escape>,<escape>white<escape>,<escape>black<escape>,<escape>pink<escape>,<escape>random<escape>],type:<escape>STRING<escape>}},required:[<escape>color_name<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>"
-        + "]]>";
-      
-      com.google.ai.edge.litertlm.ConversationConfig convConfig = new com.google.ai.edge.litertlm.ConversationConfig(
-      com.google.ai.edge.litertlm.Contents.Companion.of(systemPrompt),
-      java.util.Collections.emptyList(),
-      java.util.Collections.emptyList(),
-      sampler,
-      null);
-      lmConversation = lmEngine.createConversation(convConfig);
-      }
-
-      public void AndroidThunkJava_CloseConnection() {
-      if (lmEngine != null || lmConversation != null) {
-      lmEngine.close();
-      lmConversation.close();
-      }
-
-      }
-
-
-      private String copyAssetToInternal(String fileName) {
-      java.io.File file = new java.io.File(getFilesDir(), fileName);
-      if (!file.exists()) {
-      try (java.io.InputStream is = getAssets().open(fileName);
-      java.io.OutputStream os = new java.io.FileOutputStream(file)) {
-      byte[] buffer = new byte[1024];
-      int length;
-      while ((length = is.read(buffer)) > 0) {
-      os.write(buffer, 0, length);
-      }
-      android.util.Log.d("LiteRT-LM", "Model copied to: " + file.getAbsolutePath());
-      } catch (java.io.IOException e) {
-      android.util.Log.e("LiteRT-LM", "Failed to copy asset: " + e.getMessage());
-      return null;
-      }
-      }
-      return file.getAbsolutePath();
-      }
-
-      public void AndroidThunkJava_InitWithAssetName(String assetName) {
-      String internalPath = copyAssetToInternal(assetName);
-      if (internalPath != null) {
-      AndroidThunkJava_InitWithFunctions(internalPath);
-      }
-      }
-
-      public void AndroidThunkJava_ShutdownAll() {
-      _activity.runOnUiThread(new Runnable() {
-      @Override
-      public void run() {
-
-      // 2. Shutdown LiteRT-LM (using your existing CloseConnection logic)
-      if (lmEngine != null) {
-      lmEngine.close();
-      lmEngine = null;
-      }
       if (lmConversation != null) {
       lmConversation.close();
       lmConversation = null;
       }
 
-      android.util.Log.d("GemmaVR", "All AI services safely shutdown.");
-      }
-      });
-      }
+      try {
+      if (lmEngine != null &amp;&amp; _tools != null) {
+        com.google.ai.edge.litertlm.SamplerConfig sampler = new com.google.ai.edge.litertlm.SamplerConfig(40, 0.95, 0.1, 128);
 
-    </insert>
+        com.google.ai.edge.litertlm.ConversationConfig convConfig = new com.google.ai.edge.litertlm.ConversationConfig(
+        com.google.ai.edge.litertlm.Contents.Companion.of(_systemPrompt),
+        java.util.Collections.emptyList(),
+        _tools,
+        sampler,
+        null
+        );
+        lmConversation = lmEngine.createConversation(convConfig);
+        android.util.Log.d("LiteRT-LM", "Conversation Reset Successfully");
+        }
+        } catch(Exception e) {
+        android.util.Log.e("LiteRT-LM", "Reset Conversation Failed: " + e.getMessage());
+        }
+        }
+
+        public void AndroidThunkJava_CloseConnection() {
+        if (lmEngine != null || lmConversation != null) {
+        lmEngine.close();
+        lmConversation.close();
+        }
+
+        }
+
+
+        private String copyAssetToInternal(String fileName) {
+        java.io.File file = new java.io.File(getFilesDir(), fileName);
+        if (!file.exists()) {
+        try (java.io.InputStream is = getAssets().open(fileName);
+        java.io.OutputStream os = new java.io.FileOutputStream(file)) {
+        byte[] buffer = new byte[1024];
+        int length;
+        while ((length = is.read(buffer)) > 0) {
+        os.write(buffer, 0, length);
+        }
+        android.util.Log.d("LiteRT-LM", "Model copied to: " + file.getAbsolutePath());
+        } catch (java.io.IOException e) {
+        android.util.Log.e("LiteRT-LM", "Failed to copy asset: " + e.getMessage());
+        return null;
+        }
+        }
+        return file.getAbsolutePath();
+        }
+
+        public void AndroidThunkJava_InitWithAssetName(String assetName) {
+        String internalPath = copyAssetToInternal(assetName);
+        if (internalPath != null) {
+        AndroidThunkJava_InitWithFunctions(internalPath);
+        }
+        }
+
+        public void AndroidThunkJava_ShutdownAll() {
+        _activity.runOnUiThread(new Runnable() {
+        @Override
+        public void run() {
+
+        // 2. Shutdown LiteRT-LM (using your existing CloseConnection logic)
+        if (lmEngine != null) {
+        lmEngine.close();
+        lmEngine = null;
+        }
+        if (lmConversation != null) {
+        lmConversation.close();
+        lmConversation = null;
+        }
+
+        android.util.Log.d("GemmaVR", "All AI services safely shutdown.");
+        }
+        });
+        }
+
+      </insert>
 	</gameActivityClassAdditions>
 </root>

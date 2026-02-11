@@ -10,6 +10,9 @@
 DECLARE_DYNAMIC_DELEGATE_OneParam(FLiteRTResponseDelegate, FString, Response);
 DECLARE_DYNAMIC_DELEGATE_OneParam(FLiteRTToolResultResponseDelegate, FString, Response);
 
+// New Delegate for Tool Execution (Returns a JSON String)
+DECLARE_DYNAMIC_DELEGATE_RetVal_TwoParams(FString, FLiteRTToolExecutorDelegate, FString, FunctionName, FString, Parameters);
+
 /**
  * 
  */
@@ -31,6 +34,9 @@ public:
     static void SubmitToolResult(FString FunctionName, FString JsonResults, FLiteRTToolResultResponseDelegate OnComplete);
 
     UFUNCTION(BlueprintCallable, Category = "LiteRTLM")
+    static void RegisterToolExecutor(FLiteRTToolExecutorDelegate Executor);
+
+    UFUNCTION(BlueprintCallable, Category = "LiteRTLM")
     static void ResetConversation();
 
     UFUNCTION(BlueprintCallable, Category = "LiteRTLM")
@@ -50,10 +56,14 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "LiteRT|Lifecycle")
     static void ShutdownAIServices();
+
+    static FLiteRTToolExecutorDelegate GToolExecutorDelegate;
+
 };
 
 #if PLATFORM_ANDROID
 extern "C" {
     JNIEXPORT void JNICALL Java_com_epicgames_unreal_GameActivity_nativeOnSTTResult(JNIEnv* jenv, jobject thiz, jstring jtext);
+    JNIEXPORT jstring JNICALL Java_com_epicgames_unreal_GameActivity_nativeOnToolExecution(JNIEnv* jenv, jobject thiz, jstring jFunctionName, jstring jParams);
 }
 #endif
