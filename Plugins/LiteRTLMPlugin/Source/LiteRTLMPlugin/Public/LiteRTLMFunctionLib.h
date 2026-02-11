@@ -8,6 +8,7 @@
 
 // Add a dynamic delegate so Blueprints can "bind" to the AI's response
 DECLARE_DYNAMIC_DELEGATE_OneParam(FLiteRTResponseDelegate, FString, Response);
+DECLARE_DYNAMIC_DELEGATE_OneParam(FLiteRTToolResultResponseDelegate, FString, Response);
 
 /**
  * 
@@ -27,13 +28,13 @@ public:
     static void GenerateLMResponseAsync(FString Prompt, FLiteRTResponseDelegate OnComplete);
 
     UFUNCTION(BlueprintCallable, Category = "LiteRTLM")
-    static void SubmitToolResult(FString FunctionName, FString JsonResults);
+    static void SubmitToolResult(FString FunctionName, FString JsonResults, FLiteRTToolResultResponseDelegate OnComplete);
 
     UFUNCTION(BlueprintCallable, Category = "LiteRTLM")
     static void ResetConversation();
 
     UFUNCTION(BlueprintCallable, Category = "LiteRTLM")
-    static bool ParseFunctionCall(FString RawResponse, FString PrefixToChop, FString& OutFunctionName, TMap<FString, FString>& OutParameters);
+    static bool ParseFunctionCall(FString RawResponse, FString& OutFunctionName, TMap<FString, FString>& OutParameters);
 
     UFUNCTION(BlueprintCallable, Category = "LiteRTLM")
     static void ShutdownLM();

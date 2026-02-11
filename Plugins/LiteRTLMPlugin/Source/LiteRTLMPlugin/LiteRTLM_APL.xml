@@ -14,7 +14,7 @@
 	<buildGradleAdditions>
 		<insert>
       dependencies {
-      implementation 'com.google.ai.edge.litertlm:litertlm-android:0.9.0-alpha01'
+      implementation 'com.google.ai.edge.litertlm:litertlm-android:latest.release'
       implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.20'
       implementation 'org.jetbrains:annotations:24.0.0'
       implementation 'com.google.guava:guava:32.1.3-android'
@@ -56,9 +56,11 @@
 
 	<gameActivityClassAdditions>
 		<insert>
+
       private com.google.ai.edge.litertlm.Engine lmEngine;
       private com.google.ai.edge.litertlm.Conversation lmConversation;
       private com.google.ai.edge.litertlm.Message lmMessage;
+
 
       public void AndroidThunkJava_InitWithFunctions(String modelPath) {
       try {
@@ -70,7 +72,7 @@
       cpu,                    // 2. Backend: Base Backend
       null,                    // 3. Backend: Prefill Backend
       null,                    // 4. Backend: Decode Backend
-      512,                   // 5. Integer: Max Context Length
+      1024,                   // 5. Integer: Max Context Length
       getCacheDir().getPath() // 6. String: Cache Directory Path
       );
 
@@ -86,13 +88,15 @@
         "<start_function_declaration>declaration:toggle_tod{description:<escape>Toggle between day and night time of day in the game<escape>,parameters:{type:<escape>OBJECT<escape>}}<end_function_declaration>" +
         "<start_function_declaration>declaration:teleport_player{description:<escape>Teleports the player to a specified location.<escape>,parameters:{properties:{location_tag:{description:<escape>The location tag to teleport to.<escape>,enum:[<escape>red<escape>,<escape>green<escape>,<escape>blue<escape>],type:<escape>STRING<escape>}},required:[<escape>location_tag<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" +
         "<start_function_declaration>declaration:find_weapon{description:<escape>Find the weapon defined by the weapon_name parameter.<escape>,parameters:{properties:{weapon_name:{description:<escape>The name of the weapon to find.<escape>,enum:[<escape>pistol<escape>,<escape>rifle<escape>,<escape>grenadelauncher<escape>],type:<escape>STRING<escape>}},required:[<escape>weapon_name<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" +
-        " <start_function_declaration>declaration:change_weapon_color{description:<escape>Change the color of the weapon held by the player.<escape>,parameters:{properties:{color_name:{description:<escape>The color to change the weapon to.<escape>,enum:[<escape>red<escape>,<escape>green<escape>,<escape>blue<escape>,<escape>white<escape>,<escape>black<escape>,<escape>pink<escape>,<escape>random<escape>],type:<escape>STRING<escape>}},required:[<escape>color_name<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" 
+        " <start_function_declaration>declaration:change_weapon_color{description:<escape>Change the color of the weapon held by the player.<escape>,parameters:{properties:{color_name:{description:<escape>The color to change the weapon to.<escape>,enum:[<escape>red<escape>,<escape>green<escape>,<escape>blue<escape>,<escape>white<escape>,<escape>black<escape>,<escape>pink<escape>,<escape>random<escape>],type:<escape>STRING<escape>}},required:[<escape>color_name<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>"
         + "]]>";
 
       com.google.ai.edge.litertlm.ConversationConfig convConfig = new com.google.ai.edge.litertlm.ConversationConfig(
-      com.google.ai.edge.litertlm.Message.Companion.of(systemPrompt),
+      com.google.ai.edge.litertlm.Contents.Companion.of(systemPrompt),
       java.util.Collections.emptyList(),
-      sampler);
+      java.util.Collections.emptyList(),
+      sampler,
+      null);
       lmConversation = lmEngine.createConversation(convConfig);
 
       android.util.Log.d("LiteRT-LM", "Engine and Conversation Initialized");
@@ -109,8 +113,7 @@
 
       try {
 
-
-      String aiResult = lmConversation.sendMessage(lmMessage.Companion.of(prompt)).toString();
+      String aiResult = lmConversation.sendMessage(lmMessage.Companion.user(prompt)).toString();
 
       return aiResult;
       } catch (Exception e) {
@@ -119,9 +122,20 @@
       }
 
 
-      public void AndroidThunkJava_SubmitFunctionResult(String functionName, String resultJson) {
-      String toolMessage = "response:" + functionName + resultJson;
-      lmConversation.sendMessage(com.google.ai.edge.litertlm.Message.Companion.of(toolMessage));
+      public String AndroidThunkJava_SubmitFunctionResult(String functionName, String resultJson) {
+      if (lmEngine == null || lmConversation == null) {
+      return "Error: Engine not initialized";
+      }
+      try {
+
+      String toolMessage = "<![CDATA[" + "<end_of_turn>\n<start_of_turn>tool\n<start_function_response>response:" +"]]>" + functionName + resultJson + "<![CDATA[" + "<end_function_response>" +"]]>";
+
+      String aiResult = lmConversation.sendMessage(lmMessage.Companion.model(toolMessage)).toString();
+
+      return aiResult;
+      } catch (Exception e) {
+      return "Error during tool result response generation: " + e.getMessage();
+      }
       }
 
       public void AndroidThunkJava_ResetConversation() {
@@ -135,13 +149,15 @@
         "<start_function_declaration>declaration:toggle_tod{description:<escape>Toggle between day and night time of day in the game<escape>,parameters:{type:<escape>OBJECT<escape>}}<end_function_declaration>" +
         "<start_function_declaration>declaration:teleport_player{description:<escape>Teleports the player to a specified location.<escape>,parameters:{properties:{location_tag:{description:<escape>The location tag to teleport to.<escape>,enum:[<escape>red<escape>,<escape>green<escape>,<escape>blue<escape>],type:<escape>STRING<escape>}},required:[<escape>location_tag<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" +
         "<start_function_declaration>declaration:find_weapon{description:<escape>Find the weapon defined by the weapon_name parameter.<escape>,parameters:{properties:{weapon_name:{description:<escape>The name of the weapon to find.<escape>,enum:[<escape>pistol<escape>,<escape>rifle<escape>,<escape>grenadelauncher<escape>],type:<escape>STRING<escape>}},required:[<escape>weapon_name<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" +
-        " <start_function_declaration>declaration:change_weapon_color{description:<escape>Change the color of the weapon held by the player.<escape>,parameters:{properties:{color_name:{description:<escape>The color to change the weapon to.<escape>,enum:[<escape>red<escape>,<escape>green<escape>,<escape>blue<escape>,<escape>white<escape>,<escape>black<escape>,<escape>pink<escape>,<escape>random<escape>],type:<escape>STRING<escape>}},required:[<escape>color_name<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>" 
+        "<start_function_declaration>declaration:change_weapon_color{description:<escape>Change the color of the weapon held by the player.<escape>,parameters:{properties:{color_name:{description:<escape>The color to change the weapon to.<escape>,enum:[<escape>red<escape>,<escape>green<escape>,<escape>blue<escape>,<escape>white<escape>,<escape>black<escape>,<escape>pink<escape>,<escape>random<escape>],type:<escape>STRING<escape>}},required:[<escape>color_name<escape>],type:<escape>OBJECT<escape>}}<end_function_declaration>"
         + "]]>";
-
+      
       com.google.ai.edge.litertlm.ConversationConfig convConfig = new com.google.ai.edge.litertlm.ConversationConfig(
-      com.google.ai.edge.litertlm.Message.Companion.of(systemPrompt),
+      com.google.ai.edge.litertlm.Contents.Companion.of(systemPrompt),
       java.util.Collections.emptyList(),
-      sampler);
+      java.util.Collections.emptyList(),
+      sampler,
+      null);
       lmConversation = lmEngine.createConversation(convConfig);
       }
 

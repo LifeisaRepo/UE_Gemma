@@ -96,24 +96,42 @@ void ULiteRTLMFunctionLib::GenerateLMResponseAsync(FString Prompt, FLiteRTRespon
         });
 }
 
-void ULiteRTLMFunctionLib::SubmitToolResult(FString FunctionName, FString JsonResults)
+void ULiteRTLMFunctionLib::SubmitToolResult(FString FunctionName, FString JsonResults, FLiteRTToolResultResponseDelegate OnComplete)
 {
+    AsyncTask(ENamedThreads::AnyBackgroundHiPriTask, [FunctionName, JsonResults, OnComplete]()
+        {
+            FString Result = TEXT("Error during tool result response: AI Failed to respond");
 #if PLATFORM_ANDROID
-    if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
-    {
-        static jmethodID ToolMethod = FJavaWrapper::FindMethod(Env,
-            FJavaWrapper::GameActivityClassID, "AndroidThunkJava_SubmitFunctionResult",
-            "(Ljava/lang/String;Ljava/lang/String;)V", false);
+            if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
+            {
+                static jmethodID ToolMethod = FJavaWrapper::FindMethod(Env,
+                    FJavaWrapper::GameActivityClassID, "AndroidThunkJava_SubmitFunctionResult",
+                    "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;", false);
 
-        jstring jName = Env->NewStringUTF(TCHAR_TO_UTF8(*FunctionName));
-        jstring jRes = Env->NewStringUTF(TCHAR_TO_UTF8(*JsonResults));
-        FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityThis, ToolMethod, jName, jRes);
-        
-        // Clean up refs...
-        Env->DeleteLocalRef(jName);
-        Env->DeleteLocalRef(jRes);
-    }
+                jstring jName = Env->NewStringUTF(TCHAR_TO_UTF8(*FunctionName));
+                jstring jRes = Env->NewStringUTF(TCHAR_TO_UTF8(*JsonResults));
+                jstring jResult = (jstring)FJavaWrapper::CallObjectMethod(Env, FJavaWrapper::GameActivityThis, ToolMethod, jName, jRes);
+
+                // Convert Java String back to Unreal FString
+                const char* ResultChars = Env->GetStringUTFChars(jResult, 0);
+                Result = FString(UTF8_TO_TCHAR(ResultChars));
+
+                // Clean up refs...
+                Env->ReleaseStringUTFChars(jResult, ResultChars);
+                Env->DeleteLocalRef(jName);
+                Env->DeleteLocalRef(jRes);
+            }
+            UE_LOG(LogTemp, Warning, TEXT("BP_Gemma: SubmitToolResult Response: %s"), *Result);
+#else
+            FPlatformProcess::Sleep(1.5f);
+            Result = TEXT("Editor Simulation: This is a response to: ") + FunctionName + JsonResults;
 #endif
+            AsyncTask(ENamedThreads::GameThread, [Result, OnComplete]() 
+                {
+                    OnComplete.ExecuteIfBound(Result);
+                });
+        });
+
 }
 
 void ULiteRTLMFunctionLib::ResetConversation()
@@ -128,52 +146,53 @@ void ULiteRTLMFunctionLib::ResetConversation()
 #endif
 }
 
-bool ULiteRTLMFunctionLib::ParseFunctionCall(FString RawResponse, FString PrefixToChop, FString& OutFunctionName, TMap<FString, FString>& OutParameters)
+bool ULiteRTLMFunctionLib::ParseFunctionCall(FString RawResponse, FString& OutFunctionName, TMap<FString, FString>& OutParameters)
 {
-    // 1. Check for the FunctionGemma prefix
-    if (!RawResponse.StartsWith(PrefixToChop)) return false;
+    // 1. Clean the outer tags
+    // This removes <start_function_call>call: and <end_function_call> regardless of their exact index
+    FString WorkingString = RawResponse;
+    WorkingString = WorkingString.Replace(TEXT("<start_function_call>call:"), TEXT(""));
+    WorkingString = WorkingString.Replace(TEXT("<end_function_call>"), TEXT(""));
 
-    // 2. Split "call:func_name{...}" into "func_name" and "{...}"
-    FString CleanString = RawResponse.RightChop(26); // Remove "<start_function_call>call:"
+    UE_LOG(LogTemp, Log, TEXT("Gemma-Parser: Cleaned String: %s"), *WorkingString);
 
-    UE_LOG(LogTemp, Warning, TEXT("BP_Gemma: Parsing: %s"), *CleanString);
-
-    int32 JsonStartIndex;
-    int32 JsonEndIndex;
-    if (!CleanString.FindChar('{', JsonStartIndex)) return false;
-    if (!CleanString.FindChar('}', JsonEndIndex)) return false;
-
-    OutFunctionName = CleanString.Left(JsonStartIndex).TrimStartAndEnd();
-
-    if (!OutFunctionName.IsEmpty())
+    // 2. Identify the Function Name and Parameter Block
+    // Logic: Split at the first '{'
+    FString ParamBlock;
+    if (!WorkingString.Split(TEXT("{"), &OutFunctionName, &ParamBlock))
     {
-        UE_LOG(LogTemp, Warning, TEXT("BP_Gemma: OutFunctionName: %s"), *OutFunctionName);
-        // return true;
+        // If there's no '{', it might be a function with no parameters
+        OutFunctionName = WorkingString.TrimStartAndEnd();
+        return !OutFunctionName.IsEmpty();
     }
 
-    FString JsonPart = CleanString.RightChop(JsonStartIndex);
-    JsonPart = JsonPart.LeftChop(19);   // Remove "<end_function_call>"
+    // Remove the trailing '}' from the parameter block
+    ParamBlock = ParamBlock.Replace(TEXT("}"), TEXT(""));
+    ParamBlock = ParamBlock.TrimStartAndEnd();
+    if (!ParamBlock.IsEmpty()) {
 
-    UE_LOG(LogTemp, Warning, TEXT("BP_Gemma: Chopped JSON block: %s"), *JsonPart);
+        // 3. Clean the Parameter Block
+        // Remove all <escape> tags before parsing keys/values
+        ParamBlock = ParamBlock.Replace(TEXT("<escape>"), TEXT(""));
 
-    // 3. Parse the JSON parameters
-    TSharedPtr<FJsonObject> JsonObject;
-    TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(JsonPart);
+        UE_LOG(LogTemp, Log, TEXT("Gemma-Parser: Params to parse: %s"), *ParamBlock);
 
-    if (FJsonSerializer::Deserialize(Reader, JsonObject) && JsonObject.IsValid())
-    {
-        for (auto& Pair : JsonObject->Values)
+        // 4. Manually Parse Key-Value Pairs
+        // Logic: Split by ',' (for multiple params) and then by ':'
+        TArray<FString> PairArray;
+        ParamBlock.ParseIntoArray(PairArray, TEXT(","), true);
+
+        for (const FString& FullPair : PairArray)
         {
-            OutParameters.Add(Pair.Key, Pair.Value->AsString());
+            FString Key, Value;
+            if (FullPair.Split(TEXT(":"), &Key, &Value))
+            {
+                OutParameters.Add(Key.TrimStartAndEnd(), Value.TrimStartAndEnd());
+                UE_LOG(LogTemp, Log, TEXT("Gemma-Parser: Found Param -> %s : %s"), *Key, *Value);
+            }
         }
-        return true;
     }
-    else {
-        UE_LOG(LogTemp, Warning, TEXT("BP_Gemma: No Parameters found!"));
-        return true;
-    }
-
-    return false;
+    return !OutFunctionName.IsEmpty();
 }
 
 void ULiteRTLMFunctionLib::ShutdownLM()
