@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2026 Sanjyot Dahale (LifeIsARepo). All rights reserved.
 
 
 #include "LiteRTLMFunctionLib.h"
@@ -8,6 +8,7 @@
 #include "Dom/JsonObject.h"
 
 FLiteRTToolExecutorDelegate ULiteRTLMFunctionLib::GToolExecutorDelegate;
+FSttResponseDelegate ULiteRTLMFunctionLib::GSttResponseDelegate;
 
 #if PLATFORM_ANDROID
 #include "Android/AndroidJava.h"
@@ -21,10 +22,16 @@ JNIEXPORT void JNICALL Java_com_epicgames_unreal_GameActivity_nativeOnSTTResult(
     // Use AsyncTask to ensure we return to the GameThread before calling Unreal functions
     AsyncTask(ENamedThreads::GameThread, [RecognizedText]()
         {
-            UE_LOG(LogTemp, Log, TEXT("LiteRT-STT: %s"), *RecognizedText);
+            UE_LOG(LogTemp, Log, TEXT("LiteRT-STT RecognizedText : %s"), *RecognizedText);
 
-            // Pass the speech directly to your existing Gemma generation function
-            // ULiteRTLMFunctionLibrary::GenerateLMResponseAsync(RecognizedText);
+            if (ULiteRTLMFunctionLib::GSttResponseDelegate.IsBound())
+            {
+                ULiteRTLMFunctionLib::GSttResponseDelegate.Execute(RecognizedText);
+            }
+            else
+            {
+                UE_LOG(LogTemp, Warning, TEXT("LiteRT-STT: No SttResponseHandler Registered!"));
+            }
         });
 }
 
@@ -68,6 +75,8 @@ JNIEXPORT jstring JNICALL Java_com_epicgames_unreal_GameActivity_nativeOnToolExe
 }
 
 #endif
+
+
 
 
 void ULiteRTLMFunctionLib::InitializeLM(FString ModelPath)
@@ -181,6 +190,12 @@ void ULiteRTLMFunctionLib::RegisterToolExecutor(FLiteRTToolExecutorDelegate Exec
     UE_LOG(LogTemp, Log, TEXT("LiteRT-LM: Tool Executor Registered"));
 }
 
+void ULiteRTLMFunctionLib::HandleSttResponse(FSttResponseDelegate ResponseHandler)
+{
+    GSttResponseDelegate = ResponseHandler;
+    UE_LOG(LogTemp, Log, TEXT("LiteRT-LM: STT Response Handler Registered"));
+}
+
 void ULiteRTLMFunctionLib::ResetConversation()
 {
 #if PLATFORM_ANDROID
@@ -257,29 +272,29 @@ void ULiteRTLMFunctionLib::ShutdownLM()
 void ULiteRTLMFunctionLib::InitSTT()
 {
 #if PLATFORM_ANDROID
-    /*if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
+    if (JNIEnv* Env = FAndroidApplication::GetJavaEnv())
     {
         static jmethodID InitMethod = FJavaWrapper::FindMethod(Env, FJavaWrapper::GameActivityClassID, "AndroidThunkJava_InitSTT", "()V", false);
         FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityThis, InitMethod);
-    }*/
+    }
 #endif
 }
 
 void ULiteRTLMFunctionLib::StartSTT() {
 #if PLATFORM_ANDROID
-    /*if (JNIEnv* Env = FAndroidApplication::GetJavaEnv()) {
+    if (JNIEnv* Env = FAndroidApplication::GetJavaEnv()) {
         static jmethodID Method = FJavaWrapper::FindMethod(Env, FJavaWrapper::GameActivityClassID, "AndroidThunkJava_StartListening", "()V", false);
         FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityThis, Method);
-    }*/
+    }
 #endif
 }
 
 void ULiteRTLMFunctionLib::StopSTT() {
 #if PLATFORM_ANDROID
-    /*if (JNIEnv* Env = FAndroidApplication::GetJavaEnv()) {
+    if (JNIEnv* Env = FAndroidApplication::GetJavaEnv()) {
         static jmethodID Method = FJavaWrapper::FindMethod(Env, FJavaWrapper::GameActivityClassID, "AndroidThunkJava_StopListening", "()V", false);
         FJavaWrapper::CallVoidMethod(Env, FJavaWrapper::GameActivityThis, Method);
-    }*/
+    }
 #endif
 }
 

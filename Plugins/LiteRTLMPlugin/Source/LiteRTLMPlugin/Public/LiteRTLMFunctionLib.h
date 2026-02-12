@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+// Copyright 2026 Sanjyot Dahale (LifeIsARepo). All rights reserved.
 
 #pragma once
 
@@ -8,6 +8,7 @@
 
 // Add a dynamic delegate so Blueprints can "bind" to the AI's response
 DECLARE_DYNAMIC_DELEGATE_OneParam(FLiteRTResponseDelegate, FString, Response);
+DECLARE_DYNAMIC_DELEGATE_OneParam(FSttResponseDelegate, FString, Response);
 DECLARE_DYNAMIC_DELEGATE_OneParam(FLiteRTToolResultResponseDelegate, FString, Response);
 
 // New Delegate for Tool Execution (Returns a JSON String)
@@ -20,6 +21,10 @@ UCLASS()
 class LITERTLMPLUGIN_API ULiteRTLMFunctionLib : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
+
+private:
+
+    FString SpeechResponse;
 
 public:
     // Expose this to Blueprints so you can trigger it from your UI/PlayerController
@@ -49,6 +54,9 @@ public:
     static void InitSTT();
 
     UFUNCTION(BlueprintCallable, Category = "LiteRT|STT")
+    static void HandleSttResponse(FSttResponseDelegate ResponseHandler);
+
+    UFUNCTION(BlueprintCallable, Category = "LiteRT|STT")
     static void StartSTT();
 
     UFUNCTION(BlueprintCallable, Category = "LiteRT|STT")
@@ -57,7 +65,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "LiteRT|Lifecycle")
     static void ShutdownAIServices();
 
+
     static FLiteRTToolExecutorDelegate GToolExecutorDelegate;
+    static FSttResponseDelegate GSttResponseDelegate;
 
 };
 

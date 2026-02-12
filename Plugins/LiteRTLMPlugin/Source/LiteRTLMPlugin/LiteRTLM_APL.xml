@@ -1,3 +1,4 @@
+<!--Copyright 2026 Sanjyot Dahale (LifeIsARepo). All rights reserved.-->
 <?xml version="1.0" encoding="utf-8"?>
 <root xmlns:android="http://schemas.android.com/apk/res/android">
 	<baseBuildGradleAdditions>
@@ -62,10 +63,6 @@
 
       // Native JNI method for tool execution
       public native String nativeOnToolExecution(String functionName, String args);
-
-      // We need a specific implementation for each tool if we want to route correctly,
-      // OR a generic one if we can extract the name.
-      // `InternalJsonTool` (wrapper) calls `execute(params)`.
 
       class GenericUnrealTool implements com.google.ai.edge.litertlm.OpenApiTool {
       private String name;
@@ -189,78 +186,145 @@
 
       try {
       if (lmEngine != null &amp;&amp; _tools != null) {
-        com.google.ai.edge.litertlm.SamplerConfig sampler = new com.google.ai.edge.litertlm.SamplerConfig(40, 0.95, 0.1, 128);
+      com.google.ai.edge.litertlm.SamplerConfig sampler = new com.google.ai.edge.litertlm.SamplerConfig(40, 0.95, 0.1, 128);
 
-        com.google.ai.edge.litertlm.ConversationConfig convConfig = new com.google.ai.edge.litertlm.ConversationConfig(
-        com.google.ai.edge.litertlm.Contents.Companion.of(_systemPrompt),
-        java.util.Collections.emptyList(),
-        _tools,
-        sampler,
-        null
-        );
-        lmConversation = lmEngine.createConversation(convConfig);
-        android.util.Log.d("LiteRT-LM", "Conversation Reset Successfully");
-        }
-        } catch(Exception e) {
-        android.util.Log.e("LiteRT-LM", "Reset Conversation Failed: " + e.getMessage());
-        }
-        }
+      com.google.ai.edge.litertlm.ConversationConfig convConfig = new com.google.ai.edge.litertlm.ConversationConfig(
+      com.google.ai.edge.litertlm.Contents.Companion.of(_systemPrompt),
+      java.util.Collections.emptyList(),
+      _tools,
+      sampler,
+      null
+      );
+      lmConversation = lmEngine.createConversation(convConfig);
+      android.util.Log.d("LiteRT-LM", "Conversation Reset Successfully");
+      }
+      } catch(Exception e) {
+      android.util.Log.e("LiteRT-LM", "Reset Conversation Failed: " + e.getMessage());
+      }
+      }
 
-        public void AndroidThunkJava_CloseConnection() {
-        if (lmEngine != null || lmConversation != null) {
-        lmEngine.close();
-        lmConversation.close();
-        }
+      public void AndroidThunkJava_CloseConnection() {
+      if (lmEngine != null || lmConversation != null) {
+      lmEngine.close();
+      lmConversation.close();
+      }
 
-        }
+      }
 
 
-        private String copyAssetToInternal(String fileName) {
-        java.io.File file = new java.io.File(getFilesDir(), fileName);
-        if (!file.exists()) {
-        try (java.io.InputStream is = getAssets().open(fileName);
-        java.io.OutputStream os = new java.io.FileOutputStream(file)) {
-        byte[] buffer = new byte[1024];
-        int length;
-        while ((length = is.read(buffer)) > 0) {
-        os.write(buffer, 0, length);
-        }
-        android.util.Log.d("LiteRT-LM", "Model copied to: " + file.getAbsolutePath());
-        } catch (java.io.IOException e) {
-        android.util.Log.e("LiteRT-LM", "Failed to copy asset: " + e.getMessage());
-        return null;
-        }
-        }
-        return file.getAbsolutePath();
-        }
+      private String copyAssetToInternal(String fileName) {
+      java.io.File file = new java.io.File(getFilesDir(), fileName);
+      if (!file.exists()) {
+      try (java.io.InputStream is = getAssets().open(fileName);
+      java.io.OutputStream os = new java.io.FileOutputStream(file)) {
+      byte[] buffer = new byte[1024];
+      int length;
+      while ((length = is.read(buffer)) > 0) {
+      os.write(buffer, 0, length);
+      }
+      android.util.Log.d("LiteRT-LM", "Model copied to: " + file.getAbsolutePath());
+      } catch (java.io.IOException e) {
+      android.util.Log.e("LiteRT-LM", "Failed to copy asset: " + e.getMessage());
+      return null;
+      }
+      }
+      return file.getAbsolutePath();
+      }
 
-        public void AndroidThunkJava_InitWithAssetName(String assetName) {
-        String internalPath = copyAssetToInternal(assetName);
-        if (internalPath != null) {
-        AndroidThunkJava_InitWithFunctions(internalPath);
-        }
-        }
+      public void AndroidThunkJava_InitWithAssetName(String assetName) {
+      String internalPath = copyAssetToInternal(assetName);
+      if (internalPath != null) {
+      AndroidThunkJava_InitWithFunctions(internalPath);
+      }
+      }
 
-        public void AndroidThunkJava_ShutdownAll() {
-        _activity.runOnUiThread(new Runnable() {
-        @Override
-        public void run() {
+      public void AndroidThunkJava_ShutdownAll() {
+      _activity.runOnUiThread(new Runnable() {
+      @Override
+      public void run() {
+      // 2. Shutdown LiteRT-LM (using your existing CloseConnection logic)
+      if (lmEngine != null) {
+      lmEngine.close();
+      lmEngine = null;
+      }
+      if (lmConversation != null) {
+      lmConversation.close();
+      lmConversation = null;
+      }
 
-        // 2. Shutdown LiteRT-LM (using your existing CloseConnection logic)
-        if (lmEngine != null) {
-        lmEngine.close();
-        lmEngine = null;
-        }
-        if (lmConversation != null) {
-        lmConversation.close();
-        lmConversation = null;
-        }
+      if (speechRecognizer != null) {
+      speechRecognizer.stopListening();
+      speechRecognizer.cancel();
+      speechRecognizer.destroy();
+      speechRecognizer = null;
+      }
 
-        android.util.Log.d("GemmaVR", "All AI services safely shutdown.");
-        }
-        });
-        }
+      android.util.Log.d("GemmaVR", "All AI services safely shutdown.");
+      }
+      });
+      }
 
-      </insert>
+      private SpeechRecognizer speechRecognizer;
+      private Intent recognizerIntent;
+
+      // Native declaration to send text back to C++
+      public native void nativeOnSTTResult(String text);
+
+      public void AndroidThunkJava_InitSTT() {
+      _activity.runOnUiThread(new Runnable() {
+      @Override
+      public void run() {
+      speechRecognizer = SpeechRecognizer.createSpeechRecognizer(_activity);
+      recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+      recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+      // Use this to get results as soon as the user stops talking
+      recognizerIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false);
+
+      speechRecognizer.setRecognitionListener(new RecognitionListener() {
+      @Override
+      public void onResults(Bundle results) {
+      ArrayList&lt;String&gt; matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+      if (matches != null &amp;&amp; !matches.isEmpty()) {
+      // Call the native C++ method with the best match
+      nativeOnSTTResult(matches.get(0));
+      }
+      }
+
+      @Override public void onReadyForSpeech(Bundle params) { android.util.Log.d("LiteRT-STT", "Listening..."); }
+      @Override public void onError(int error) { android.util.Log.e("LiteRT-STT", "Error code: " + error); }
+      @Override public void onBeginningOfSpeech() {}
+      @Override public void onRmsChanged(float rmsdB) {}
+      @Override public void onBufferReceived(byte[] buffer) {}
+      @Override public void onEndOfSpeech() {}
+      @Override public void onPartialResults(Bundle partialResults) {}
+      @Override public void onEvent(int eventType, Bundle params) {}
+      });
+      }
+      });
+      }
+
+      public void AndroidThunkJava_StartListening() {
+      _activity.runOnUiThread(new Runnable() {
+      @Override
+      public void run() {
+      if (speechRecognizer != null) {
+      speechRecognizer.startListening(recognizerIntent);
+      }
+      }
+      });
+      }
+
+      public void AndroidThunkJava_StopListening() {
+      _activity.runOnUiThread(new Runnable() {
+      @Override
+      public void run() {
+      if (speechRecognizer != null) {
+      speechRecognizer.stopListening();
+      }
+      }
+      });
+      }
+
+    </insert>
 	</gameActivityClassAdditions>
 </root>

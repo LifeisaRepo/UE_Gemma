@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright 2026 Sanjyot Dahale (LifeIsARepo). All rights reserved.
 
 using System.IO;
 using UnrealBuildTool;
