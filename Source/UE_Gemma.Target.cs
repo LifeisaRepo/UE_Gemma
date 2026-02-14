@@ -1,4 +1,4 @@
-// Copyright 2026 Sanjyot Dahale (LifeIsARepo). All rights reserved.
+// Copyright © 2026 Sanjyot Dahale.
 
 using UnrealBuildTool;
 using System.Collections.Generic;

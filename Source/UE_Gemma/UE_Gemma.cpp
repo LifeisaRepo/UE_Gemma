@@ -1,4 +1,4 @@
-// Copyright 2026 Sanjyot Dahale (LifeIsARepo). All rights reserved.
+// Copyright © 2026 Sanjyot Dahale.
 
 #include "UE_Gemma.h"
 #include "Modules/ModuleManager.h"
