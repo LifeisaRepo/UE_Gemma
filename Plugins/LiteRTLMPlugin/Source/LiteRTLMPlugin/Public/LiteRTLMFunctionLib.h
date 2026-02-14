@@ -6,7 +6,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "LiteRTLMFunctionLib.generated.h"
 
-// Add a dynamic delegate so Blueprints can "bind" to the AI's response
+
 DECLARE_DYNAMIC_DELEGATE_OneParam(FLiteRTResponseDelegate, FString, Response);
 DECLARE_DYNAMIC_DELEGATE_OneParam(FSttResponseDelegate, FString, Response);
 DECLARE_DYNAMIC_DELEGATE_OneParam(FLiteRTToolResultResponseDelegate, FString, Response);
@@ -27,11 +27,10 @@ private:
     FString SpeechResponse;
 
 public:
-    // Expose this to Blueprints so you can trigger it from your UI/PlayerController
+    
     UFUNCTION(BlueprintCallable, Category = "LiteRTLM")
     static void InitializeLM(FString ModelPath);
-
-    // This is the function you call from Blueprints
+   
     UFUNCTION(BlueprintCallable, Category = "LiteRTLM")
     static void GenerateLMResponseAsync(FString Prompt, FLiteRTResponseDelegate OnComplete);
 
@@ -71,6 +70,7 @@ public:
 
 };
 
+// JNI Function declarations which will be defined in C++
 #if PLATFORM_ANDROID
 extern "C" {
     JNIEXPORT void JNICALL Java_com_epicgames_unreal_GameActivity_nativeOnSTTResult(JNIEnv* jenv, jobject thiz, jstring jtext);

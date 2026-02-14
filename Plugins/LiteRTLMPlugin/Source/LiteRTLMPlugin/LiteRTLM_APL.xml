@@ -63,7 +63,8 @@
 
       // Native JNI method for tool execution
       public native String nativeOnToolExecution(String functionName, String args);
-
+      
+      // This class overrides the Tools class
       class GenericUnrealTool implements com.google.ai.edge.litertlm.OpenApiTool {
       private String name;
       private String fullDescriptionJson;
@@ -90,7 +91,8 @@
       private List&lt;Object&gt;
         _tools;
         private String _systemPrompt;
-
+        
+        // Initializes Model
         public void AndroidThunkJava_InitWithFunctions(String modelPath) {
         try {
         com.google.ai.edge.litertlm.Backend gpu = com.google.ai.edge.litertlm.Backend.GPU;
@@ -98,7 +100,7 @@
 
         com.google.ai.edge.litertlm.EngineConfig config = new com.google.ai.edge.litertlm.EngineConfig(
         modelPath,              // 1. String: Model Path
-        cpu,                    // 2. Backend: Base Backend
+        cpu,                    // 2. Backend: Base Backend (Using CPU as GPU was crashing the app)
         null,                   // 3. Backend: Prefill Backend
         null,                   // 4. Backend: Decode Backend
         1024,                   // 5. Integer: Max Context Length
@@ -113,27 +115,27 @@
         // Define Tools
         _tools = new ArrayList&lt;&gt;();
 
-      // Tool 1: move_ai_to_pin
+
       String t1 = "{\"name\": \"move_ai_to_pin\", \"description\": \"Move the AI NPC to a predefined location.\", \"parameters\": { \"type\": \"object\" } }";
       _tools.add(com.google.ai.edge.litertlm.ToolKt.tool(new GenericUnrealTool("move_ai_to_pin", t1)));
 
-      // Tool 2: find_nearest_weapon
+
       String t2 = "{\"name\": \"find_nearest_weapon\", \"description\": \"Find the weapon nearest to the player\", \"parameters\": { \"type\": \"object\" } }";
       _tools.add(com.google.ai.edge.litertlm.ToolKt.tool(new GenericUnrealTool("find_nearest_weapon", t2)));
 
-      // Tool 3: toggle_tod
+
       String t3 = "{\"name\": \"toggle_tod\", \"description\": \"Toggle between day and night time of day in the game\", \"parameters\": { \"type\": \"object\" } }";
       _tools.add(com.google.ai.edge.litertlm.ToolKt.tool(new GenericUnrealTool("toggle_tod", t3)));
 
-      // Tool 4: teleport_player
+
       String t4 = "{\"name\": \"teleport_player\", \"description\": \"Teleports the player to a specified location.\", \"parameters\": { \"type\": \"object\", \"properties\": { \"location_tag\": { \"type\": \"string\", \"enum\": [\"red\", \"green\", \"blue\"], \"description\": \"The location tag to teleport to.\" } }, \"required\": [\"location_tag\"] } }";
       _tools.add(com.google.ai.edge.litertlm.ToolKt.tool(new GenericUnrealTool("teleport_player", t4)));
 
-      // Tool 5: find_weapon
+
       String t5 = "{\"name\": \"find_weapon\", \"description\": \"Find the weapon defined by the weapon_name parameter.\", \"parameters\": { \"type\": \"object\", \"properties\": { \"weapon_name\": { \"type\": \"string\", \"enum\": [\"pistol\", \"rifle\", \"grenadelauncher\"], \"description\": \"The name of the weapon to find.\" } }, \"required\": [\"weapon_name\"] } }";
       _tools.add(com.google.ai.edge.litertlm.ToolKt.tool(new GenericUnrealTool("find_weapon", t5)));
 
-      // Tool 6: change_weapon_color
+
       String t6 = "{\"name\": \"change_weapon_color\", \"description\": \"Change the color of the weapon held by the player.\", \"parameters\": { \"type\": \"object\", \"properties\": { \"color_name\": { \"type\": \"string\", \"enum\": [\"red\", \"green\", \"blue\", \"white\", \"black\", \"pink\", \"random\"], \"description\": \"The color to change the weapon to.\" } }, \"required\": [\"color_name\"] } }";
       _tools.add(com.google.ai.edge.litertlm.ToolKt.tool(new GenericUnrealTool("change_weapon_color", t6)));
 
@@ -155,7 +157,8 @@
       android.util.Log.e("LiteRT-LM", "Initialization failed: " + e.getMessage());
       }
       }
-
+      
+      // Handles natural language response from Gemma
       public String AndroidThunkJava_GenerateResponse(String prompt) {
       if (lmEngine == null || lmConversation == null) {
       return "Error: Engine not initialized";
@@ -171,13 +174,8 @@
       return "Error during generation: " + e.getMessage();
       }
       }
-
-
-      public String AndroidThunkJava_SubmitFunctionResult(String functionName, String resultJson) {
-      // Deprecated: Results are now handled automatically via ToolManager execution cycle
-      return "Tool execution handled internally";
-      }
-
+      
+      // Reset conversation with Gemma
       public void AndroidThunkJava_ResetConversation() {
       if (lmConversation != null) {
       lmConversation.close();
@@ -202,7 +200,8 @@
       android.util.Log.e("LiteRT-LM", "Reset Conversation Failed: " + e.getMessage());
       }
       }
-
+      
+      // Deprecated
       public void AndroidThunkJava_CloseConnection() {
       if (lmEngine != null || lmConversation != null) {
       lmEngine.close();
@@ -211,7 +210,8 @@
 
       }
 
-
+      // Handles copying the .litert-lm file from the app's internal path
+      // to your phone's storage for easy access
       private String copyAssetToInternal(String fileName) {
       java.io.File file = new java.io.File(getFilesDir(), fileName);
       if (!file.exists()) {
@@ -230,14 +230,16 @@
       }
       return file.getAbsolutePath();
       }
-
+      
+      // Initialize the model after copying the model to local storage
       public void AndroidThunkJava_InitWithAssetName(String assetName) {
       String internalPath = copyAssetToInternal(assetName);
       if (internalPath != null) {
       AndroidThunkJava_InitWithFunctions(internalPath);
       }
       }
-
+      
+      // Shutdown Gemma
       public void AndroidThunkJava_ShutdownAll() {
       _activity.runOnUiThread(new Runnable() {
       @Override
@@ -269,7 +271,8 @@
 
       // Native declaration to send text back to C++
       public native void nativeOnSTTResult(String text);
-
+      
+      // Initialize STT
       public void AndroidThunkJava_InitSTT() {
       _activity.runOnUiThread(new Runnable() {
       @Override
@@ -277,7 +280,7 @@
       speechRecognizer = SpeechRecognizer.createSpeechRecognizer(_activity);
       recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
       recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-      // Use this to get results as soon as the user stops talking
+      // Set to false so that we don't get the result unless the user has stopped talking.
       recognizerIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false);
 
       speechRecognizer.setRecognitionListener(new RecognitionListener() {
@@ -302,7 +305,7 @@
       }
       });
       }
-
+      
       public void AndroidThunkJava_StartListening() {
       _activity.runOnUiThread(new Runnable() {
       @Override
@@ -313,7 +316,9 @@
       }
       });
       }
-
+      
+      // Currently this is not required as the STT Listener stops automatically
+      // once the user stops talking.
       public void AndroidThunkJava_StopListening() {
       _activity.runOnUiThread(new Runnable() {
       @Override

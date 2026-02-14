@@ -43,9 +43,6 @@ JNIEXPORT jstring JNICALL Java_com_epicgames_unreal_GameActivity_nativeOnToolExe
 
     UE_LOG(LogTemp, Log, TEXT("LiteRT-Tool: Requested Execution: %s with Params: %s"), *FunctionName, *Params);
 
-    // We need to execute this on the GameThread, but we must return a value synchronously to Java.
-    // So we will pause this thread (which checks out as being a background thread from Java) until the GT finishes.
-
     FString ToolResult = TEXT("{}");
     FEvent* SyncEvent = FPlatformProcess::GetSynchEventFromPool(false);
 
@@ -162,11 +159,11 @@ void ULiteRTLMFunctionLib::SubmitToolResult(FString FunctionName, FString JsonRe
                 jstring jRes = Env->NewStringUTF(TCHAR_TO_UTF8(*JsonResults));
                 jstring jResult = (jstring)FJavaWrapper::CallObjectMethod(Env, FJavaWrapper::GameActivityThis, ToolMethod, jName, jRes);
 
-                // Convert Java String back to Unreal FString
+                
                 const char* ResultChars = Env->GetStringUTFChars(jResult, 0);
                 Result = FString(UTF8_TO_TCHAR(ResultChars));
 
-                // Clean up refs...
+                
                 Env->ReleaseStringUTFChars(jResult, ResultChars);
                 Env->DeleteLocalRef(jName);
                 Env->DeleteLocalRef(jRes);
@@ -210,7 +207,7 @@ void ULiteRTLMFunctionLib::ResetConversation()
 
 bool ULiteRTLMFunctionLib::ParseFunctionCall(FString RawResponse, FString& OutFunctionName, TMap<FString, FString>& OutParameters)
 {
-    // 1. Clean the outer tags
+    
     // This removes <start_function_call>call: and <end_function_call> regardless of their exact index
     FString WorkingString = RawResponse;
     WorkingString = WorkingString.Replace(TEXT("<start_function_call>call:"), TEXT(""));
@@ -218,12 +215,12 @@ bool ULiteRTLMFunctionLib::ParseFunctionCall(FString RawResponse, FString& OutFu
 
     UE_LOG(LogTemp, Log, TEXT("Gemma-Parser: Cleaned String: %s"), *WorkingString);
 
-    // 2. Identify the Function Name and Parameter Block
+    
     // Logic: Split at the first '{'
     FString ParamBlock;
     if (!WorkingString.Split(TEXT("{"), &OutFunctionName, &ParamBlock))
     {
-        // If there's no '{', it might be a function with no parameters
+        
         OutFunctionName = WorkingString.TrimStartAndEnd();
         return !OutFunctionName.IsEmpty();
     }
@@ -233,13 +230,13 @@ bool ULiteRTLMFunctionLib::ParseFunctionCall(FString RawResponse, FString& OutFu
     ParamBlock = ParamBlock.TrimStartAndEnd();
     if (!ParamBlock.IsEmpty()) {
 
-        // 3. Clean the Parameter Block
+        
         // Remove all <escape> tags before parsing keys/values
         ParamBlock = ParamBlock.Replace(TEXT("<escape>"), TEXT(""));
 
         UE_LOG(LogTemp, Log, TEXT("Gemma-Parser: Params to parse: %s"), *ParamBlock);
 
-        // 4. Manually Parse Key-Value Pairs
+        
         // Logic: Split by ',' (for multiple params) and then by ':'
         TArray<FString> PairArray;
         ParamBlock.ParseIntoArray(PairArray, TEXT(","), true);
